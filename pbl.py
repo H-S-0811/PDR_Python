@@ -2,56 +2,20 @@ import csv
 import numpy as np
 import math
 from numpy import linalg as LA
+import pandas as pd
+import matplotlib.pyplot as plt
+import cul_func as Cul
+import sys
+import plotly.graph_objects as go
+
+np.set_printoptions(suppress=True, precision=10)
 
 csv_data = []
-delta_t: float = 1/120
+delta_t = 0
 j = 0
 posi = []
-
-def Cul_Omega(data: list) -> np.ndarray:
-    x_data = [0,-1*float(data[6]),float(data[5])]
-    y_data = [float(data[6]),0,-1*float(data[4])]
-    z_data = [-1*float(data[5]),float(data[4]),0]
-    M_list = [x_data,y_data,z_data]
-    return np.array(M_list)
-
-def Cul_Omega_k(data: np.ndarray) -> np.ndarray:
-    x_data = [0,1 * float(data[2]), -float(data[1])]
-    y_data = [-float(data[2]),0,1* float(data[0])]
-    z_data = [1 *float(data[1]),-float(data[0]),0]
-    M_list = [x_data,y_data,z_data]
-    return np.array(M_list)
-
-def Cul_S(data: np.ndarray) -> np.ndarray:
-    x_data = [0, -1 * float(data[2, 0]), float(data[1, 0])]
-    y_data = [float(data[2, 0]), 0, -1 * float(data[0, 0])]
-    z_data = [-1 * float(data[1, 0]), float(data[0, 0]), 0]
-    M_list = [x_data,y_data,z_data]
-    return np.array(M_list)
-
-def Cul_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    if a.shape != (3,3):
-        raise Exception(a.shape)
-    if not (b.shape == (3,3) or b.shape == (3,1)):
-        raise Exception(b.shape)
-    return a @ b
-
-def Cul_acc_n(Ck: np.ndarray,Ck_1: np.ndarray,data: list) -> np.ndarray: 
-    a_S = np.array(
-        [float(data[1]), float(data[2]), float(data[3])]
-    )
-    a_S = a_S.reshape(3,1)
-    
-    if a_S.shape != (3,1):
-        raise Exception(a_S.shape)
-
-    return Cul_matrix((Ck+Ck_1),a_S)*1/2
-
-def Cul_F(Sk: np.ndarray) -> np.ndarray:
-    a = np.vstack([np.vstack([np.identity(3,dtype=float),np.zeros((3,3))]),-1 * Sk*delta_t])
-    b = np.vstack([np.vstack([np.zeros((3,3)),np.identity(3,dtype=float)]),np.zeros((3,3))])
-    c = np.vstack([np.vstack([np.zeros((3,3)),np.identity(3,dtype=float) * delta_t]),np.identity(3,dtype=float)])
-    return np.concatenate([a,b,c], axis=1)
+vel = []
+ans = []
 
 
 with open("data/1.csv") as f:
@@ -61,65 +25,104 @@ with open("data/1.csv") as f:
         csv_data.append(row)
         i = i+1
 
-Omegak_1 = Cul_Omega(csv_data[1])
-roll = math.atan(float(csv_data[1][2])/float(csv_data[1][3]))
-pitch = -math.asin(float(csv_data[1][1])/9.8)
+data = pd.read_csv("data/1.csv",sep=";")
+first = data.loc[0,:]
+Omegak_1 = Cul.Omega(first)
+
+# numpyの値表示設定
+np.set_printoptions(formatter={'float': '{:.5e}'.format})
+
+roll = math.atan(float(first.at["acc_y"])/float(first.at["acc_z"]))
+pitch = -math.asin(float(first.at["acc_x"])/9.8)
 C_x = [math.cos(pitch),math.sin(roll)*math.sin(pitch),math.cos(roll)*math.sin(pitch)]
 C_y = [0,math.cos(roll),-math.sin(roll)]
 C_z = [-math.sin(pitch),math.sin(roll)*math.cos(pitch),math.cos(roll)*math.cos(pitch)]
 C_list = [C_x,C_y,C_z]
 C = np.array(C_list)
-
+time_k =  np.copy(first["time"])
 # Ck_1 = Cul_matrix(2 * np.identity(3,dtype=float) + Omegak_1 * delta_t , np.linalg.inv(2 * np.identity(3,dtype=float) - Omegak_1*delta_t))
 Ck_1 = C
 # Acc_N_1 = Cul_acc_n(C,Ck_1,csv_data[1])
-a_S = np.array([float(csv_data[1][1]), float(csv_data[1][2]), float(csv_data[1][3])])
-Acc_N_1 = C @ a_S
+a_S = np.array([(first["acc_x"]), first["acc_y"], first["acc_z"]])
+Acc_N_1 = np.inner(C,a_S)
+Acc_N_1 = Acc_N_1.reshape(3,1)
 vk_1 = np.array([[0],[0],[0]])
 pk_1 = np.array([[0],[0],[0]])
 Pk_1 = np.zeros((9,9))
 gra = np.array([[0],[0],[9.8]])
 Q = [0.01,0.01,0.01,0,0,0,0.01,0.01,0.01]
-Qk = np.linalg.matrix_power(np.diag(Q)*delta_t,2)
 r = [0.01**2,0.01**2,0.01**2]
 R = np.diag(r)
 H = np.hstack([np.hstack([np.zeros((3,3)),np.zeros((3,3))]),np.identity(3,dtype=float)])
 
-for i in range(2,len(csv_data)):
-# for i in range(2,5):
-    delta_t = float(csv_data[i][0]) - float(csv_data[i-1][0])
-    csv_data[i][4] = str(float(csv_data[i][4]) - (-0.0156))
-    csv_data[i][5] = str(float(csv_data[i][5]) - (-0.0101))
-    csv_data[i][6] = str(float(csv_data[i][6]) - (-0.0020))
-    Omegak = Cul_Omega(csv_data[i])
-    g_k = np.array([csv_data[i][4],csv_data[i][5],csv_data[i][6]])
-    Ck = Ck_1 @ (2 * np.identity(3,dtype=float) + (Omegak * delta_t)) @ np.linalg.inv(2 * np.identity(3,dtype=float) - (Omegak*delta_t))
-
-
-    Acc_N = Cul_acc_n(Ck,Ck_1,csv_data[i])
-    vk = vk_1 + (Acc_N + Acc_N_1 - 2*gra)* delta_t / 2
+for index, row in data[1:].iterrows():
+    delta_t = row["time"] - time_k
+    time_k = np.copy(row["time"])
+    row["gyr_x"] = row["gyr_x"] - (-0.0156)
+    row["gyr_y"] = row["gyr_y"] - (-0.0101)
+    row["gyr_z"] = row["gyr_z"] - (-0.0020)
+    Omegak = Cul.Omega(row)
+    a_S = np.array([(row["acc_x"]), row["acc_y"], row["acc_z"]])
+    g_k = np.array([row["gyr_x"],row["gyr_y"],row["gyr_z"]])
+    I = np.identity(3,dtype=float)
+    C_1 = 2 * I + (Omegak * delta_t)
+    C_2 = 2 * I - (Omegak * delta_t)
+    Ck = (Ck_1 @ C_1) @ np.linalg.inv(C_2)
+    Acc_N =  np.inner(0.5 * (Ck+Ck_1),a_S)
+    Acc_N = Acc_N.reshape(3,1)
+    vk = vk_1 + ((Acc_N - gra) + (Acc_N_1 - gra))* delta_t / 2
     pk = pk_1 + (vk+vk_1)* delta_t / 2
     # print(f"{pk[0][0]},{pk[1][0]},{pk[2][0]}")
     
     Acc_N_1 = np.copy(Acc_N)
+    Sk = Cul.S(Acc_N)
+    Fk = Cul.F(Sk,delta_t)
+    Qk = np.linalg.matrix_power(np.diag(Q)*(delta_t),2)
+
+    # Pk = np.matmul(Fk,Pk_1,Fk.T) + Qk
+    Pk = Cul.Pk(Fk,Pk_1,Qk)
+    print("A")
+
+    # if LA.norm(g_k,ord=2) < 0.6:
+    if np.sqrt(row["gyr_x"] ** 2 + row["gyr_y"] ** 2 + row["gyr_z"] ** 2)  < 0.6:
+        # k = np.linalg.inv(H @ Pk @ H.T + R)
+        # Kk = Pk @ H.T @ k
+        Kk = Cul.Kk(H,Pk,R)
+
+        a = Kk @ vk
+
+        # Pk = (np.identity(9,dtype=float) - Kk @ H) @ Pk
+        Pk = Cul.update_Pk(Kk,H,Pk)
+        # ここまで正解
+
+        Omegaep_k = Cul.Omega_k(a[0:3])
+
+        Ck_1 = 2 * np.identity(3,dtype=float) + Omegaep_k * delta_t
+        Ck_2 = 2 * np.identity(3,dtype=float) - Omegaep_k * delta_t
+        Ck = Cul.update_C(Ck_1,Ck_2,Ck)
+
+        pk = pk - a[3:6]
+        vk = vk - a[6:]
+
     vk_1 = np.copy(vk)
     pk_1 = np.copy(pk)
-    Sk = Cul_S(Acc_N)
-    Fk = Cul_F(Sk)
-    Pk = np.matmul(Fk,Pk_1,Fk.T) + Qk
-    # if LA.norm(g_k) < 0.6:
-    #     k = np.linalg.inv(H @ Pk @ H.T + R)
-    #     Kk = Pk @ H.T @ k
-    #     a = Kk @ vk
-    #     Pk = (np.identity(9,dtype=float) - Kk @ H) @ Pk
-    #     Omegaep_k = Cul_Omega_k(a)
-    #     Ck = Cul_matrix(2 * np.identity(3,dtype=float) + Omegaep_k * delta_t , 2 * np.identity(3,dtype=float) - Omegaep_k*delta_t)
-
-    #     pk = pk - a[3:6]
-    #     vk = vk - a[6:]
-    #     vk_1 = vk
-    #     pk_1 = pk
-    
     Pk_1 = np.copy(Pk)
     Ck_1 = np.copy(Ck)
     posi.append(pk)
+
+for i in range(len(posi)):
+    z= [posi[i][0][0],posi[i][1][0],posi[i][2][0]]
+    ans.append(z)
+
+ANS = pd.DataFrame(ans,columns=['X', 'Y','Z'])
+print(ANS)
+
+fig = go.Figure(data=[
+    go.Scatter3d(x=ANS["X"], y=ANS["Y"],z=ANS["Z"], name="acc_x", marker=dict(size=2)),
+])
+# fig.update_yaxes(
+#     scaleanchor = "x",
+#     scaleratio = 1,
+#   )
+fig.update_scenes(aspectmode='data')
+fig.show()
