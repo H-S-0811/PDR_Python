@@ -56,11 +56,11 @@ def Pk(Fk: np.ndarray,Pk_1: np.ndarray,Qk: np.ndarray) -> np.ndarray:
     return (Fk @ Pk_1 @ Fk.T) + Qk 
 
 def Kk(H: np.ndarray, Pk: np.ndarray, R: np.ndarray) -> np.ndarray:
-    k = np.linalg.inv(H @ Pk @ H.T + R)
+    k = np.linalg.inv((H @ Pk @ H.T) + R)
     return Pk @ H.T @ k
 
 def update_Pk(Kk: np.ndarray, H: np.ndarray, Pk: np.ndarray) -> np.ndarray:
-    return (np.identity(9,dtype=float) - Kk @ H) @ Pk
+    return (np.identity(9,dtype=float) - (Kk @ H)) @ Pk
 
 def update_C(Ck_1 :np.ndarray, Ck_2 : np.ndarray, Ck : np.ndarray):
     return Ck_1 @ np.linalg.inv(Ck_2) @ Ck
