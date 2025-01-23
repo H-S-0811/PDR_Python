@@ -43,9 +43,7 @@ C_z = [
 C_list = [C_x, C_y, C_z]
 C = np.array(C_list, dtype=np.float64)
 time_k = np.copy(first["time"])
-# Ck_1 = Cul_matrix(2 * np.identity(3,dtype=float) + Omegak_1 * delta_t , np.linalg.inv(2 * np.identity(3,dtype=float) - Omegak_1*delta_t))
 Ck_1 = C
-# Acc_N_1 = Cul_acc_n(C,Ck_1,csv_data[1])
 a_S = np.array([(first["acc_x"]), first["acc_y"], first["acc_z"]], dtype=np.float64)
 Acc_N_1 = np.inner(C, a_S)
 Acc_N_1 = Acc_N_1.reshape(3, 1)
@@ -79,7 +77,6 @@ for index, row in data[1:].iterrows():
     Acc_N = Acc_N.reshape(3, 1)
     vk = vk_1 + ((Acc_N - gra) + (Acc_N_1 - gra)) * delta_t / 2
     pk = pk_1 + (vk + vk_1) * delta_t / 2
-    # print(f"{pk[0][0]},{pk[1][0]},{pk[2][0]}")
 
     Acc_N_1 = np.copy(Acc_N)
     Sk = Cul.S(Acc_N)
@@ -90,14 +87,10 @@ for index, row in data[1:].iterrows():
     Pk = Cul.Pk(Fk, Pk_1, Qk)
 
     if LA.norm(g_k, ord=2) < 0.6:
-        # if np.sqrt(row["gyr_x"] ** 2 + row["gyr_y"] ** 2 + row["gyr_z"] ** 2)  < 0.6:
-        # k = np.linalg.inv(H @ Pk @ H.T + R)
-        # Kk = Pk @ H.T @ k
         Kk = Cul.Kk(H, Pk, R)
 
         a = Kk @ vk
         A = a
-        # Pk = (np.identity(9,dtype=float) - Kk @ H) @ Pk
         Pk = Cul.update_Pk(Kk, H, Pk)
         # ここまで正解
 
