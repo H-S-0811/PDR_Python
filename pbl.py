@@ -20,8 +20,11 @@ posi_E = []
 vel_E = []
 
 data = pd.read_csv("data/1.csv", sep=";")
+data.loc[:, "gyr_x_calibrated"] = data.loc[:, "gyr_x"] - (-0.0156)
+data.loc[:, "gyr_y_calibrated"] = data.loc[:, "gyr_y"] - (-0.0101)
+data.loc[:, "gyr_z_calibrated"] = data.loc[:, "gyr_z"] - (-0.0020)
 data_Test = data.copy()
-first = data.loc[0, :]
+first = data.iloc[0]
 Omegak_1 = Cul.Omega(first)
 
 # numpyの値表示設定
@@ -42,7 +45,7 @@ C_z = [
 ]
 C_list = [C_x, C_y, C_z]
 C = np.array(C_list, dtype=np.float64)
-time_k = np.copy(first["time"])
+time_k = float(first["time"])
 Ck_1 = C
 a_S = np.array([(first["acc_x"]), first["acc_y"], first["acc_z"]], dtype=np.float64)
 Acc_N_1 = np.inner(C, a_S)
@@ -59,56 +62,21 @@ H = np.hstack(
 )
 
 for index, row in data[1:].iterrows():
-    shape = (9, 1)
-    A = np.zeros(shape)
-    delta_t = row["time"] - time_k
-    time_k = np.copy(row["time"])
-    row["gyr_x"] = row["gyr_x"] - (-0.0156)
-    row["gyr_y"] = row["gyr_y"] - (-0.0101)
-    row["gyr_z"] = row["gyr_z"] - (-0.0020)
-    Omegak = Cul.Omega(row)
-    a_S = np.array([(row["acc_x"]), row["acc_y"], row["acc_z"]], dtype=np.float64)
-    g_k = np.array([row["gyr_x"], row["gyr_y"], row["gyr_z"]], dtype=np.float64)
-    I = np.identity(3, dtype=np.float64)
-    C_1 = 2 * I + (Omegak * delta_t)
-    C_2 = 2 * I - (Omegak * delta_t)
-    Ck = (Ck_1 @ C_1) @ np.linalg.inv(C_2)
-    Acc_N = np.inner(0.5 * (Ck + Ck_1), a_S)
-    Acc_N = Acc_N.reshape(3, 1)
-    vk = vk_1 + ((Acc_N - gra) + (Acc_N_1 - gra)) * delta_t / 2
-    pk = pk_1 + (vk + vk_1) * delta_t / 2
+    vk_1, pk_1, Pk_1, Ck_1, pk, Acc_N_1, time_k = Cul.func2(
+        row=row,
+        time_k=time_k,
+        Ck_1=Ck_1,
+        vk_1=vk_1,
+        gra=gra,
+        Acc_N_1=Acc_N_1,
+        pk_1=pk_1,
+        Pk_1=Pk_1,
+        Q=Q,
+        H=H,
+        R=R,
+    )
 
-    Acc_N_1 = np.copy(Acc_N)
-    Sk = Cul.S(Acc_N)
-    Fk = Cul.F(Sk, delta_t)
-    Qk = np.linalg.matrix_power(np.diag(Q) * (delta_t), 2)
-
-    # Pk = np.matmul(Fk,Pk_1,Fk.T) + Qk
-    Pk = Cul.Pk(Fk, Pk_1, Qk)
-
-    if LA.norm(g_k, ord=2) < 0.6:
-        Kk = Cul.Kk(H, Pk, R)
-
-        a = Kk @ vk
-        A = a
-        Pk = Cul.update_Pk(Kk, H, Pk)
-        # ここまで正解
-
-        Omegaep_k = Cul.Omega_k(a[0:3])
-
-        Ck_1_L = 2 * np.identity(3, dtype=np.float64) + Omegaep_k * delta_t
-        Ck_2_L = 2 * np.identity(3, dtype=np.float64) - Omegaep_k * delta_t
-        Ck = Cul.update_C(Ck_1_L, Ck_2_L, Ck)
-        pk = pk - a[3:6]
-        vk = vk - a[6:]
-
-    vk_1 = np.copy(vk)
-    pk_1 = np.copy(pk)
-    Pk_1 = np.copy(Pk)
-    Ck_1 = np.copy(Ck)
     posi.append(pk)
-    posi_E.append(A[3:6])
-    vel_E.append(A[6:])
 
 # print(pd.testing.assert_frame_equal(data,data_Test))
 
@@ -143,7 +111,7 @@ for i in range(len(posi)):
 ANS = pd.DataFrame(ans[1:], columns=["X", "Y"])
 fig = go.Figure(
     data=[
-        go.Scatter(x=ANS["X"], y=ANS["Y"], name="acc_x"),
+        go.Scatter(x=ANS["X"], y=ANS["Y"]),
     ]
 )
 fig.update_yaxes(
