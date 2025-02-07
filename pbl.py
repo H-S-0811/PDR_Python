@@ -96,10 +96,6 @@ for index, row in data[1:].iterrows():
     Ck_1 = np.copy(Ck)
     posi.append(pk)
 
-
-Ans = pd.read_csv("ans.csv")
-Ans.columns = ["X","Y","Z"]
-
 #3D
 for i in range(len(posi)):
     z= [posi[i][0][0],posi[i][1][0],posi[i][2][0]]
