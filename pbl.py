@@ -16,7 +16,18 @@ ans = []
 posi_E =[]
 vel_E = []
 
-data = pd.read_csv("data/1.csv",sep=";")
+
+# data = pd.read_csv("data/1.csv",sep=";")
+data = pd.read_csv("data/iOS_data.csv",sep=";")
+# data = data.rename(columns={
+#     "acc_x": "acc_z",
+#     "acc_y": "acc_x",
+#     "acc_z": "acc_y",
+#     "gyr_x": "gyr_z",
+#     "gyr_y": "gyr_x",
+#     "gyr_z": "gyr_y",
+
+# })
 data_Test = data.copy()
 first = data.loc[0,:]
 Omegak_1 = Cul.Omega(first)
@@ -32,9 +43,7 @@ C_z = [-math.sin(pitch),math.sin(roll)*math.cos(pitch),math.cos(roll)*math.cos(p
 C_list = [C_x,C_y,C_z]
 C = np.array(C_list,dtype=np.float64)
 time_k =  np.copy(first["time"])
-# Ck_1 = Cul_matrix(2 * np.identity(3,dtype=float) + Omegak_1 * delta_t , np.linalg.inv(2 * np.identity(3,dtype=float) - Omegak_1*delta_t))
 Ck_1 = C
-# Acc_N_1 = Cul_acc_n(C,Ck_1,csv_data[1])
 A = np.array
 a_S = np.array([(first["acc_x"]), first["acc_y"], first["acc_z"]],dtype=np.float64)
 Acc_N_1 = np.inner(C,a_S)
@@ -52,9 +61,9 @@ for index, row in data[1:].iterrows():
     A = np.array([[0],[0],[0],[0],[0],[0],[0],[0],[0]])
     delta_t = row["time"] - time_k
     time_k = np.copy(row["time"])
-    row["gyr_x"] = round(row["gyr_x"] - (-0.0156), 6)
-    row["gyr_y"] = round(row["gyr_y"] - (-0.0101), 6)
-    row["gyr_z"] = round(row["gyr_z"] - (-0.0020), 6)
+    # row["gyr_x"] = round(row["gyr_x"] - (-0.0156), 6)
+    # row["gyr_y"] = round(row["gyr_y"] - (-0.0101), 6)
+    # row["gyr_z"] = round(row["gyr_z"] - (-0.0020), 6)
     Omegak = Cul.Omega(row)
     a_S = np.array([row["acc_x"], row["acc_y"], row["acc_z"]],dtype=np.float64)
     g_k = np.array([row["gyr_x"],row["gyr_y"],row["gyr_z"]],dtype=np.float64)
@@ -64,7 +73,8 @@ for index, row in data[1:].iterrows():
     Ck = (Ck_1 @ C_1) @ np.linalg.inv(C_2)
     Acc_N = np.inner(0.5 * (Ck+Ck_1),a_S)
     Acc_N = Acc_N.reshape(3,1)
-    vk = vk_1 + ((Acc_N - gra) + (Acc_N_1 - gra))* delta_t / 2
+    # vk = vk_1 + ((Acc_N - gra) + (Acc_N_1 - gra))* delta_t / 2
+    vk = vk_1 + ((Acc_N) + (Acc_N_1))* delta_t / 2
     pk = pk_1 + (vk+vk_1)* delta_t / 2
 
     Acc_N_1 = np.copy(Acc_N)
@@ -72,7 +82,6 @@ for index, row in data[1:].iterrows():
     Fk = Cul.F(Sk,delta_t)
     Qk = np.linalg.matrix_power(np.diag(Q)*(delta_t),2)
 
-    # Pk = np.matmul(Fk,Pk_1,Fk.T) + Qk
     Pk = Cul.Pk(Fk,Pk_1,Qk)
 
     if LA.norm(g_k,ord=2) < 0.6:
@@ -113,7 +122,6 @@ fig = go.Figure(data=[
 #     XY= [time,posi[i][0][0],posi[i][1][0]]
 #     ans.append(XY)
 # POSI = pd.DataFrame(ans[0:],columns=["ind",'X', 'Y'])
-# ANS = pd.DataFrame(Ans[0:150],columns=['X', 'Y'])
 # fig = go.Figure(data=[
 #     go.Scatter(
 #         mode='markers',
@@ -121,12 +129,6 @@ fig = go.Figure(data=[
 #         y=POSI["Y"], 
 #         name="MYPOSI",
 #         text=POSI['ind'])
-#     #  go.Scatter(
-#     #     mode='markers',
-#     #     x=ANS["X"], 
-#     #     y=ANS["Y"], 
-#     #     name="ANS",
-#     #     text=data['time']),
 # ])
 fig.update_yaxes(
     scaleanchor = "x",
